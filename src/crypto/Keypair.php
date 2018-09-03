@@ -158,12 +158,23 @@ class Keypair
     }
 
     public function getPublic($private){
+        return $this->encodePublic($this->getRawPublic($private));
+    }
+
+    public function getRawPublic($private)
+    {
+        $rawPublic = Bytes::getbytes(ed25519_publickey(Bytes::tostr($this->getRawPrivate($private))));
+        return $rawPublic;
+    }
+
+    public function getRawPrivate($private)
+    {
         if(!isset($private)){
             return false;
         }
         $bytePrivate = Bytes::getbytes(Base58::decode($private));
         $rawByte = array_slice($bytePrivate, 4, 32);
-        $rawPublic = Bytes::getbytes(ed25519_publickey(Bytes::tostr($rawByte)));
-        return $this->encodePublic($rawPublic);
+        return $rawByte;
     }
+
 }
