@@ -10,7 +10,11 @@ namespace bumo;
 
 
 use bumo\account\Account;
+use bumo\blockchain\Transaction;
 use bumo\common\General;
+use bumo\contract\Contract;
+use bumo\token\Asset;
+use bumo\token\Bu;
 
 class SDK
 {
@@ -42,5 +46,24 @@ class SDK
     public function account()
     {
         return new Account();
+    }
+
+    public function transaction()
+    {
+        return new Transaction();
+    }
+
+    public function contract(){
+        return new Contract();
+    }
+
+    public function asset()
+    {
+        return new Asset();
+    }
+
+    public function bu()
+    {
+        return new Bu();
     }
 }

@@ -16,11 +16,17 @@ use bumo\exception\Error;
 use bumo\model\operation\ContractCreateOperation;
 use bumo\model\operation\ContractInvokeByAssetOperation;
 use bumo\model\operation\ContractInvokeByBUOperation;
+use bumo\model\request\ContractCallRequest;
+use bumo\model\request\ContractCheckValidRequest;
 use bumo\model\request\ContractGetAddressRequest;
 use bumo\model\request\ContractGetInfoRequest;
+use bumo\model\response\ContractCallResponse;
+use bumo\model\response\ContractCheckValidResponse;
 use bumo\model\response\ContractGetAddressResponse;
 use bumo\model\response\ContractGetInfoResponse;
 use bumo\model\response\result\ContractGetInfoResult;
+use bumo\model\response\TransactionGetInfoResponse;
+use bumo\SDK;
 
 class Contract
 {
@@ -210,8 +216,147 @@ class Contract
      */
     public function getAddress($req)
     {
-        $result = Http::get(General::c($req->getContractAddress()));
-        $response = new ContractGetAddressResponse();
+        //通过hash，获取信息
+        $result = SDK::getInstance("")->transaction()->getTransactionInfo($hash);
+        // echo $result;exit;
+        $ContractGetAddressResponse = new ContractGetAddressResponse();
+        $resultObject = json_decode($result); //转对象
+        if($resultObject->error_code ==4 ){
+            throw new  \Exception($hash .' is error!', 1);
+        }
+
+        $TransactionGetInfoResponse = new TransactionGetInfoResponse();
+        $TransactionGetInfoResponse->setErrorCode($resultObject->error_code);
+        $TransactionGetInfoResponse->setResult($resultObject->result);
+        // var_dump($TransactionGetInfoResponse->getResult()->getTransactions()[0]);exit;
+        $transactionHistory = $TransactionGetInfoResponse->getResult()->getTransactions()[0];
+        $contractAddress = $transactionHistory->getErrorDesc();
+        $contractAddressOb = json_decode($contractAddress);
+        // foreach ($$contractAddressOb as $key => $value) {
+        //     $temp = new \src\model\response\result\data\ContractAddressInfo();
+        //     $temp
+        // }
+        // $resultOb = new \src\model\response\result\ContractGetAddressResult();
+        $result=array();
+        $result['contract_address_infos'] = $contractAddressOb;
+        // var_dump(json_decode(json_encode($result)));exit;
+        $ContractGetAddressResponse->setErrorCode($resultObject->error_code);
+        $ContractGetAddressResponse->setResult(json_decode(json_encode($result)));
+
+        return $ContractGetAddressResponse;
+    }
+
+    /**
+     * @param $req ContractCallRequest
+     * @return ContractCallResponse
+     * @throws \Exception
+     */
+    public function call($req)
+    {
+        $result = Http::get(General::accountGetInfoUrl($req->getContractAddress()));
+        $keyPair = new Keypair();
+        $response = new ContractCallResponse();
+        $getSourceAddress = $req->getSourceAddress();
+        if($getSourceAddress && !$keyPair->checkAddress($getSourceAddress)){
+            $error = Error::getError("INVALID_CONTRACTADDRESS_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        $getContractAddress = $req->getContractAddress();
+        if($getContractAddress && !$keyPair->checkAddress($getContractAddress)){
+            $error = Error::getError("INVALID_CONTRACTADDRESS_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        if ($getSourceAddress && $getContractAddress && $getContractAddress==$getSourceAddress) {
+            $error = Error::getError("SOURCEADDRESS_EQUAL_CONTRACTADDRESS_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        $code = $req->getCode();
+        if(!$code && !$getContractAddress){
+            $error = Error::getError("CONTRACTADDRESS_CODE_BOTH_NULL_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        $feeLimit = $req->getFeeLimit();
+        if(!$feeLimit || $feeLimit< 1){
+            $error = Error::getError("INVALID_FEELIMIT_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        $optType = $req->getOptType();
+        if(is_null($optType) || $optType< 0 || $optType> 2){
+            $error = Error::getError("INVALID_OPTTYPE_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+        $input = $req->getInput();
+        $contractBalance = $req->getContractBalance();
+        $gasPrice = $req->getGasPrice();
+
+
+        if(!General::$url){
+            $error = Error::getError("URL_EMPTY_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+
+        $param = array();
+        $param['opt_type'] = $optType;
+        $param['fee_limit'] = $feeLimit;
+        // echo $getContractAddress;exit;
+        if($getSourceAddress)
+            $param['source_address'] = $getSourceAddress;
+        if($getContractAddress)
+            $param['contract_address'] = $getContractAddress;
+        if($code)
+            $param['code'] = $code;
+        if($input)
+            $param['input'] = $input;
+        if($contractBalance)
+            $param['contract_balance'] = $contractBalance;
+        if($gasPrice)
+            $param['gas_price'] = $gasPrice;
+
+// var_dump($param);exit;
+        $contractGetInfoUrl = General::contractCallUrl();
+        $result = Http::post($contractGetInfoUrl,$param);
+        $resultObject = json_decode($result); //转对象
+        if($resultObject->error_code==4){
+            $error = Error::getError("SYSTEM_ERROR");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            return $response;
+        }
+        // var_dump($resultObject);exit;
+
+        $response->setErrorCode($resultObject->error_code);
+        $response->setResult($resultObject->result);
+        return $response;
+    }
+
+    /**
+     * @param $req ContractCheckValidRequest
+     * @return ContractCheckValidResponse
+     * @throws \Exception
+     */
+    public function checkValid($req)
+    {
+        $result = Http::get(General::accountGetInfoUrl($req->getContractAddress()));
+        $response = new ContractCheckValidResponse();
         if(0 != $result->error_code){
             if(4 == $result->error_code){
                 $error = Error::getError("SYSTEM_ERROR");

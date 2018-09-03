@@ -326,4 +326,14 @@ class Transaction
         return $response;
     }
 
+    /**
+     * @param $hash
+     * @return mixed
+     * @throws \Exception
+     */
+    function getTransactionInfo($hash){
+        $baseUrl = General::transactionGetInfoUrl($hash);
+        $result = Http::get($baseUrl);
+        return $result;
+    }
 }
