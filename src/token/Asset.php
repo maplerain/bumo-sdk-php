@@ -9,11 +9,15 @@
 namespace bumo\token;
 
 
+use bumo\common\General;
+use bumo\common\Http;
 use bumo\crypto\Keypair;
 
 use bumo\exception\Error;
 use bumo\model\operation\AssetIssueOperation;
 use bumo\model\operation\AssetSendOperation;
+use bumo\model\request\AssetGetInfoRequest;
+use bumo\model\response\AssetGetInfoResponse;
 use Protocol\Operation;
 
 class Asset
@@ -113,5 +117,32 @@ class Asset
         $oper->setType($opertype);
         $oper->setPayAsset($OperationPayAsset);
         return $oper;
+    }
+
+    /**
+     * @param AssetGetInfoRequest $req
+     * @return AssetGetInfoResponse
+     * @throws \Exception
+     */
+    public function test($req){
+        $result = Http::get(General::assetGetUrl($req->getAddress(), $req->getCode(), $req->getIssue()));
+        $response = new AssetGetInfoResponse();
+        if(0 != $result->error_code){
+            if(4 == $result->error_code){
+                $error = Error::getError("SYSTEM_ERROR");
+                $response->setErrorCode($error['errorCode']);
+                $response->setErrorDesc($error['errorDesc']);
+            }else{
+                $response->setErrorCode($result->error_code);
+                $response->setErrorDesc($result->error_desc);
+            }
+        }else{
+            $error = Error::getError("SUCCESS");
+            $response->setErrorCode($error['errorCode']);
+            $response->setErrorDesc($error['errorDesc']);
+            var_dump($result->result);
+            $response->setResult($result->result);
+        }
+        return $response;
     }
 }
